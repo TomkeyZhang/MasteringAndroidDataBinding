@@ -1,4 +1,4 @@
-# 精通 Android Data Binding [![Build Status](https://travis-ci.org/LyndonChin/MasteringAndroidDataBinding.svg)](https://travis-ci.org/LyndonChin/MasteringAndroidDataBinding)
+#  Android Data Binding [![Build Status](https://travis-ci.org/LyndonChin/MasteringAndroidDataBinding.svg)](https://travis-ci.org/LyndonChin/MasteringAndroidDataBinding)
 
 修改自
 https://github.com/LyndonChin/MasteringAndroidDataBinding
@@ -16,43 +16,56 @@ Data Binding 框架如果能够推广开来，也许 *RoboGuice、ButterKnife* �
 classpath 'com.android.tools.build:gradle:1.5.0'
 ```
 
-然后修改对应模块（Module）的 [build.gradle](app/build.gradle#L7-L9)：
+Android Studio 不低于1.3，然后修改对应模块（Module）的 [build.gradle](app/build.gradle#L7-L9)：
 
 ```groovy
 dataBinding {
     enabled true
 }
 ```
-
-## 基础
+<strong>注意：</strong>如果有一个依赖library使用了data binding，那么主项目也需要配置data binding
+## 一、基础用法
 
 工程创建完成后，我们通过一个最简单的例子来说明 Data Binding 的基本用法。
 
-### 布局文件
+### 1.1 布局文件
 
 使用 Data Binding 之后，xml 的布局文件就不再用于单纯地展示 UI 元素，还需要定义 UI 元素用到的变量。所以，它的根节点不再是一个 `ViewGroup`，而是变成了 `layout`，并且新增了一个节点 `data`。
 
 ```xml
 <layout xmlns:android="http://schemas.android.com/apk/res/android">
-    <data>
-    </data>
-    <!--原先的根节点（Root Element）-->
-    <LinearLayout>
-    ....
-    </LinearLayout>
+   <data>
+       <variable name="user" type="com.example.User"/>
+   </data>
+   <LinearLayout
+       android:orientation="vertical"
+       android:layout_width="match_parent"
+       android:layout_height="match_parent">
+       <TextView android:layout_width="wrap_content"
+           android:layout_height="wrap_content"
+           android:text="@{user.firstName}"/>
+       <TextView android:layout_width="wrap_content"
+           android:layout_height="wrap_content"
+           android:text="@{user.lastName}"/>
+   </LinearLayout>
 </layout>
 ```
+data中定义的User变量可以方便的被下面的布局引用，引用的方式@{}.
 
-要实现 MVVM 的 `ViewModel` 就需要把数据（Model）与 UI（View） 进行绑定，`data` 节点的作用就像一个桥梁，搭建了 View 和 Model 之间的通路。
+### 1.2 数据对象
 
-我们先在 xml 布局文件的 `data` 节点中声明一个 `variable`，这个变量会为 UI 元素提供数据（例如 `TextView` 的 `android:text`），然后在 Java 代码中把『后台』数据与这个 `variable` 进行绑定。
+添加一个 POJO 类, 以下3种写法是等价的
 
-下面我们使用 Data Binding 创建一个展示用户信息的表格。
-
-### 数据对象
-
-添加一个 POJO 类 - [`User`](app/src/main/java/com/liangfeizc/databinding/model/User.java)，非常简单，两个属性以及他们的 getter 和 setter。
-
+```java
+public class User {
+   public final String firstName;
+   public final String lastName;
+   public User(String firstName, String lastName) {
+       this.firstName = firstName;
+       this.lastName = lastName;
+   }
+}
+```
 ```java
 public class User {
     private final String firstName;
@@ -72,191 +85,428 @@ public class User {
     }
 }
 ```
+```java
+public class User {
+    private final String firstName;
+    private final String lastName;
 
+    public User(String firstName, String lastName) {
+        this.firstName = firstName;
+        this.lastName = lastName;
+    }
+
+    public String firstName() {
+        return firstName;
+    }
+
+    public String lastName() {
+        return lastName;
+    }
+}
+```
 稍后，我们会新建一个 `User` 类型的变量，然后把它跟布局文件中声明的变量进行绑定。
 
-### 定义 Variable
+### 1.3 绑定数据
 
-回到布局文件，在 `data` 节点中声明一个 `User` 类型的变量 `user`。
-
-```xml
-<data>
-	<variable name="user" type="com.liangfeizc.databindingsamples.basic.User" />
-</data>
-```
-
-其中 `type` 属性就是我们在 Java 文件中定义的 `User` 类。
-
-当然，`data` 节点也支持 `import`，所以上面的代码可以换一种形式来写。
-
-```xml
-<data>
-    <import type="com.liangfeizc.databindingsamples.basic.User" />
-    <variable name="user" type="User" />
-</data>
-```
-
-然后我们刚才在 build.gradle 中添加的那个插件 - `com.android.databinding` 会根据 xml 文件的名称 **Generate** 一个继承自 `ViewDataBinding` 的类。 当然，IDE 中看不到这个文件，需要手动去 build 目录下找。
-
-例如，这里 xml 的文件名叫 `activity_basic.xml`，那么生成的类就是 `ActivityBasicBinding`。
-
-**注意**
-
-`java.lang.*` 包中的类会被自动导入，可以直接使用，例如要定义一个 `String` 类型的变量：
-
-```xml
-<variable name="firstName" type="String" />
-```
-
-### 绑定 Variable
-
-修改 [`BasicActivity`](app/src/main/java/com/liangfeizc/databinding/sample/basic/BasicActivity.java#L17-L20) 的 `onCreate` 方法，用 `DatabindingUtil.setContentView()` 来替换掉 `setContentView()`，然后创建一个 `user` 对象，通过 `binding.setUser(user)` 与 `variable` 进行绑定。
+默认情况下，Android Studio会根据xml文件的名称生成一个继承自`ViewDataBinding`的绑定类，例如main_activity.xml会生成一个MainActivityBinding类，这个类中会生成xml中的variable变量，View对象以及数据绑定的逻辑。创建这个类对象最简单的方式就是在加载布局的时候
 
 ```java
 @Override
 protected void onCreate(Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
-    ActivityBasicBinding binding = DataBindingUtil.setContentView(
-            this, R.layout.activity_basic);
-    User user = new User("fei", "Liang");
-    binding.setUser(user);
+   super.onCreate(savedInstanceState);
+   MainActivityBinding binding = DataBindingUtil.setContentView(this, R.layout.main_activity);
+   User user = new User("Test", "User");
+   binding.setUser(user);
 }
 ```
 
-除了使用框架自动生成的 `ActivityBasicBinding`，我们也可以通过如下方式自定义类名。
+其中这一句
 
-```xml
-<data class="com.example.CustomBinding">
-</data>
+```java
+   MainActivityBinding binding = DataBindingUtil.setContentView(this, R.layout.main_activity);
 ```
 
-**注意**
+也可以换成这两句：
 
-`ActivityBasicBinding` 类是自动生成的，所有的 `set` 方法也是根据 `variable` 名称生成的。例如，我们定义了两个变量。
+```java
+MainActivityBinding binding = MainActivityBinding.inflate(getLayoutInflater());
+setContentView(binding.getRoot());
+```
+在ListView或者RecylerView的adapter中可以这样用：
+
+```java
+ListItemBinding binding = ListItemBinding.inflate(layoutInflater, viewGroup, false);
+//或者
+ListItemBinding binding = DataBindingUtil.inflate(layoutInflater, R.layout.list_item, viewGroup, false);
+```
+
+### 1.4 事件处理
+Data Binding中可以使用表达式来处理View中的事件（如：OnClick），这些xml中事件的名称一般都是跟View中相应的listener中的方法一致，比如View.OnLongClickListener中有`onLongClick()`方法，所以xml中会有事件`android:onLongClick`，目前有两种方式来处理一个事件：
+
+* Method References：这种方式你的方法参数要跟监听器的参数完全一致。当表达式表示的是一个方法引用，Data Binding会把这个方法包装在一个listener中，然后把这个listener设置到目标View上。
+
+
+* Listener Bindings：这种方式Data Binding同样也会把lambda表达式的逻辑包装到一个listener里面去，在事件发生时执行你的lambda表达式。
+
+####1.4.1 Method References(示例)
+
+```java
+public class MyHandlers {
+    public void onClickFriend(View view) { ... }
+}
+```
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android">
+   <data>
+       <variable name="handlers" type="com.example.MyHandlers"/>
+       <variable name="user" type="com.example.User"/>
+   </data>
+   <LinearLayout
+       android:orientation="vertical"
+       android:layout_width="match_parent"
+       android:layout_height="match_parent">
+       <TextView android:layout_width="wrap_content"
+           android:layout_height="wrap_content"
+           android:text="@{user.firstName}"
+           android:onClick="@{handlers::onClickFriend}"/>
+   </LinearLayout>
+</layout>
+```
+注意：onClickFriend方法的参数必须跟View.OnClickListener中的onClick方法参数完全一致。这一点跟我们将`android:onClick`指向Activity中的某个方法是一样的。如果参数不一致，会在编译的时候报错。
+
+####1.4.2 Listener Bindings(示例)
+在Method References中，方法的参数必须跟listener中的方法参数完全匹配，但是在Listener Bindings中只需要返回值跟listener中方法的返回值一致就可以。
+
+```java
+public class Presenter {
+    public void onSaveClick(Task task){}
+}
+```
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+  <layout xmlns:android="http://schemas.android.com/apk/res/android">
+      <data>
+          <variable name="task" type="com.android.example.Task" />
+          <variable name="presenter" type="com.android.example.Presenter" />
+      </data>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent">
+          <Button android:layout_width="wrap_content" android:layout_height="wrap_content"
+          android:onClick="@{() -> presenter.onSaveClick(task)}" />
+      </LinearLayout>
+  </layout>
+```
+这两者最重要的区别是给View设置listener的时机不一样，Method References是只有在绑定好handler对象（handler不为null）后才会给View设置listener，而Listener Binding会一直挂一个listener到View上，只有handler对象不为null时才会执行相应方法。
+
+这种方法更加灵活，你可以忽略view参数，也可以声明一个view参数，可以将此参数往下传，也可以不传
+
+```xml
+ android:onClick="@{(view) -> presenter.onSaveClick(task)}"
+```
+如果需要view参数
+
+```java
+public class Presenter {
+    public void onSaveClick(View view, Task task){}
+}
+```
+
+```xml
+ android:onClick="@{(theView) -> presenter.onSaveClick(theView,task)}"
+```
+也可以这样：
+
+```java
+public class Presenter {
+    public void onCompletedChanged(Task task, boolean completed){}
+}
+```
+
+```xml
+   <CheckBox android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:onCheckedChanged="@{(cb, isChecked) -> presenter.completeChanged(task, isChecked)}" />
+```
+如果事件的方法需要一个返回值，比如onLongClickListener，onLongClick方法必须返回一个boolean的值
+
+```java
+public class Presenter {
+    public boolean onLongClick(View view, Task task){}
+}
+```
+
+```xml
+   android:onLongClick="@{(theView) -> presenter.onLongClick(theView, task)}"
+```
+如果因为事件处理对象（presenter）为null，导致表达式无法执行，框架会返回java类型的默认值。如：对象类型返回null，int类型返回0，boolean类型返回false等等。
+
+
+####1.4.3 避免复杂的 Listeners
+写好Listener表达式可以让你的代码简洁易读，但是另一方面如果在其中写很复杂的表达式会使你的布局变得难以阅读和维护，建议只在表达式中调用某个类的方法就可以了，不要有逻辑判断。
+附：某些`View`存在特定的`click`事件处理器，为了解决跟`android:onClick`的冲突，新增了一些属性来区分
+
+| Class        | Listener Setter           | Attribute  |
+| ------------- |:-------------:| -----:|
+| SearchView	     |setOnSearchClickListener(View.OnClickListener) | android:onSearchClick |
+| ZoomControls     | setOnZoomInClickListener(View.OnClickListener)    |  android:onZoomIn |
+| ZoomControls |setOnZoomOutClickListener(View.OnClickListener)      |    android:onZoomOut |
+		
+				
+
+
+## 二、布局
+### 2.1 Imports标签
+在data标签中可以引用0到多个import标签，这样在布局中就可以使用标签中的属性和方法，就像在java代码中使用一样
 
 ```xml
 <data>
-    <variable name="firstName" type="String" />
-    <variable name="lastName" type="String" />
+    <import type="android.view.View"/>
+</data>
+<TextView
+   		android:text="@{user.lastName}"
+   		android:layout_width="wrap_content"
+   		android:layout_height="wrap_content"
+   		android:visibility="@{user.isAdult ? View.VISIBLE : View.GONE}"／>
+```
+如果class的名字冲突，可以定义“别名”
+
+```xml
+<import type="android.view.View"/>
+<import type="com.example.real.estate.View"
+        alias="Vista"/>
+```
+
+定义一个`List<User>`对象可以这样写
+
+```xml
+<data>
+    <import type="com.example.User"/>
+    <import type="java.util.List"/>
+    <variable name="user" type="User"/>
+    <variable name="userList" type="List&lt;User&gt;"/>
+</data>
+```
+如果User里面有一个connection属性也是User，在xml里面可以这样引用这个对象的属性
+
+```xml
+<TextView
+   android:text="@{((User)(user.connection)).lastName}"
+   android:layout_width="wrap_content"
+   android:layout_height="wrap_content"/>
+```
+引用某个类的静态方法可以这么写：
+
+```xml
+<data>
+    <import type="com.example.MyStringUtils"/>
+    <variable name="user" type="com.example.User"/>
+</data>
+…
+<TextView
+   android:text="@{MyStringUtils.capitalize(user.lastName)}"
+   android:layout_width="wrap_content"
+   android:layout_height="wrap_content"/>
+```
+
+在整个xml文件中，java.lang.*包中的类是被自动导入的。比如要使用String类是不需要import的。
+
+### 2.2 Variable标签
+每个Variable元素表示一个可以被引用的属性
+
+```xml
+<data>
+    <import type="android.graphics.drawable.Drawable"/>
+    <variable name="user"  type="com.example.User"/>
+    <variable name="image" type="Drawable"/>
+    <variable name="note"  type="String"/>
+</data>
+```
+如果要针对不同的屏幕模式配置不同的布局，Android Studio生成Binding类的时候会先将这些xml中的Variable合并放到一个基类中，然后不同模式的Binding类会继承这个类。如果这样写将编译出错
+
+layout-land
+
+```xml
+<data>
+    <variable name="user"  type="com.example.User"/>
+</data>
+```
+layout-port
+
+```xml
+<data>
+	<variable name="user"  type="com.example.tomkeyzhang.mytestapplication.User"/>
 </data>
 ```
 
-那么就会生成对应的两个 set 方法。
+每个Variable会在生成的Binding类生成setter和getter方法，在未赋值之前它们会有一个java的默认值：对象类型-null，int－0，boolean－false等等
 
-```java
-setFirstName(String firstName);
-setLastName(String lastName);
-```
+默认情况下在布局中有一个隐藏属性context可以使用，这个属性是取自getContext()方法。如果你又定义了一个名为context的Variable，这个属性会被覆盖。
 
+### 2.3 自定义Binding Class的名字和路径
+默认情况下是根据xml文件名称来生成Binding Class，具体的规则是首字母大写，去除下划线并将后面的第一个字母大写，然后最后以`Binding`结尾。生成的这个类会被放在包名`（com.example.tomkeyzhang.mytestapplication）`下面的`databinding`包中。
 
-### 使用 Variable
-
-数据与 Variable 绑定之后，xml 的 UI 元素就可以直接使用了。
+如果要修改Binding Class的名称，可以这样
 
 ```xml
-<TextView
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:text="@{user.lastName}" />
+<data class="ActivityDataBinding">
+    ...
+</data>
 ```
-
-至此，一个简单的数据绑定就完成了，可参考[完整代码](app/src/main/java/com/liangfeizc/databinding/sample/basic/)
-
-## 高级用法
-
-### 使用类方法
-
-首先定义一个静态方法
-
-```java
-public class MyStringUtils {
-    public static String capitalize(final String word) {
-        if (word.length() > 1) {
-            return String.valueOf(word.charAt(0)).toUpperCase() + word.substring(1);
-        }
-        return word;
-    }
-}
-```
-
-然后在 xml 的 `data` 节点中导入：
+如果希望生成的类直接放在包名目录下，可以这样写
 
 ```xml
-<import type="com.liangfeizc.databindingsamples.utils.MyStringUtils" />
+<data class=".ActivityDataBinding">
+    ...
+</data>
 ```
-
-使用方法与 Java 语法一样：
-
-```java
-<TextView
-	android:layout_width="wrap_content"
-	android:layout_height="wrap_content"
-	android:text="@{MyStringUtils.capitalize(user.firstName)}" />
-```
-
-### 类型别名
-
-如果我们在 `data` 节点了导入了两个同名的类怎么办？
+当然，也可以完全自定义路径
 
 ```xml
-<import type="com.example.home.data.User" />
-<import type="com.examle.detail.data.User" />
-<variable name="user" type="User" />
+<data class="com.example.ActivityDataBinding">
+    ...
+</data>
 ```
-
-这样一来出现了两个 `User` 类，那 `user` 变量要用哪一个呢？不用担心，`import` 还有一个 `alias` 属性。
+### 2.4 Include标签
+使用include标签的时候我们可以直接把Variable传递过去
 
 ```xml
-<import type="com.example.home.data.User" />
-<import type="com.examle.detail.data.User" alias="DetailUser" />
-<variable name="user" type="DetailUser" />
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:bind="http://schemas.android.com/apk/res-auto">
+   <data>
+       <variable name="user" type="com.example.User"/>
+   </data>
+   <LinearLayout
+       android:orientation="vertical"
+       android:layout_width="match_parent"
+       android:layout_height="match_parent">
+       <include layout="@layout/name"
+           bind:user="@{user}"/>
+       <include layout="@layout/contact"
+           bind:user="@{user}"/>
+   </LinearLayout>
+</layout>
+```
+同时注意在被include的布局中也需要定义一个user的Variable。
+目前Data Binding还不支持在merge下直接放一个include标签，如下是不被支持的
+
+```xml
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:bind="http://schemas.android.com/apk/res-auto">
+   <data>
+       <variable name="user" type="com.example.User"/>
+   </data>
+   <merge>
+       <include layout="@layout/name"
+           bind:user="@{user}"/>
+       <include layout="@layout/contact"
+           bind:user="@{user}"/>
+   </merge>
+</layout>
+```
+### 2.5 表达式语言
+#### 2.5.1 通用特性
+目前支持[`这些特性`](https://developer.android.com/topic/libraries/data-binding/index.html#expression_language)，例如：
+
+```xml
+android:text="@{String.valueOf(index + 1)}"
+android:visibility="@{age < 13 ? View.GONE : View.VISIBLE}"
+android:transitionName='@{"image_" + id}'
 ```
 
-### Null Coalescing 运算符
+目前还不支持[`这些操作`](https://developer.android.com/topic/libraries/data-binding/index.html#expression_language)
 
-```java
+#### 2.5.2 空接合运算符
+这个运算符`(??)`表示如果左边不为null就取左边的值，否则取右边的值
+
+```xml
 android:text="@{user.displayName ?? user.lastName}"
 ```
+上面的写法等价于
 
-就等价于
-
-```java
+```xml
 android:text="@{user.displayName != null ? user.displayName : user.lastName}"
 ```
 
-### 属性值
-
-通过 `@{}` 可以直接把 Java 中定义的属性值赋值给 xml 属性。
-
-```xml
-<TextView
-   android:text="@{user.lastName}"
-   android:layout_width="wrap_content"
-   android:layout_height="wrap_content"
-   android:visibility="@{user.isAdult ? View.VISIBLE : View.GONE}"/>
-```
-
-### 使用资源数据
-
-这个例子，官方教程有错误，可以参考[Android Data Binder 的一个bug](http://blog.csdn.net/feelang/article/details/46342699)，[完整代码在此](app/src/main/res/layout/activity_resource.xml)
+#### 2.5.3 属性引用
+这个比较简单，之前也用过，不管是在class中定义的是普通属性，`getter`方法，还是`Observable`属性，引用方式都是一样的
 
 ```xml
-<TextView
-    android:padding="@{large? (int)@dimen/largePadding : (int)@dimen/smallPadding}"
-    android:background="@android:color/black"
-    android:textColor="@android:color/white"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:text="@string/hello_world" />
+android:text="@{user.lastName}"
+```
+#### 2.5.4 空值保护
+使用表达式任何时候都不会抛空指针异常，生成的Binding类会检查每个属性是否为空，空的话会取默认值
+
+#### 2.5.5 集合对象
+可以使用`[]`来访问集合（如：Array、List，Map等）的元素
+
+```xml
+<data>
+    <import type="android.util.SparseArray"/>
+    <import type="java.util.Map"/>
+    <import type="java.util.List"/>
+    <variable name="list" type="List&lt;String&gt;"/>
+    <variable name="sparse" type="SparseArray&lt;String&gt;"/>
+    <variable name="map" type="Map&lt;String, String&gt;"/>
+    <variable name="index" type="int"/>
+    <variable name="key" type="String"/>
+</data>
+…
+android:text="@{list[index]}"
+…
+android:text="@{sparse[index]}"
+…
+android:text="@{map[key]}"
 ```
 
-## Observable Binding
+#### 2.5.6 字符串常量
+如果要取map中某一个常量key的值，可以这么写
 
-本来这一节的标题应该叫**双向绑定**，但是很遗憾，现在的 **Data Binding** 暂时支持单向绑定，还没有达到 **Angular.js** 的威力。
+```xml
+android:text='@{map["firstName"]}'
+```
 
-要实现 Observable Binding，首先得有一个 `implement` 了接口 `android.databinding.Observable` 的类，为了方便，Android 原生提供了已经封装好的一个类 - `BaseObservable`，并且实现了监听器的注册机制。
+```xml
+ android:text="@{map[`firstName`]}"
+```
 
-我们可以直接继承 `BaseObservable`。
+但是不能这么谢，虽然文档中说可以。。
+
+```xml
+ android:text="@{map['firstName']}"
+```
+
+#### 2.5.7 资源
+可以在表达式中跟外面使用一样的语法来引用资源
+
+```xml
+ android:padding="@{large? @dimen/largePadding : @dimen/smallPadding}"
+```
+格式化的`string`和复数可以通过参数来表示
+
+```xml
+android:text="@{@string/nameFormat(firstName, lastName)}"
+android:text="@{@plurals/banana(bananaCount)}"
+```
+部分[`资源类型`](https://developer.android.com/topic/libraries/data-binding/index.html#expression_language)需要显示声明类型，例如：
+
+```xml
+<array name="array">
+    <item>1</item>
+    <item>2</item>
+</array>
+```
+
+```xml
+android:text="@{``+@intArray/array}"
+```
+    
+## 三、数据对象
+任何的POJO对象都可以被绑定到xml上，但是修改一个对象的属性（比如firstName）正常并不会自动更新UI。data binding真正强大之处是它可以在属性变化时自动通知界面更新，目前有三种方式可以实现这个效果。
+
+### 3.1 Observable Objects（观察者对象）
+要实现 Observable Binding，首先得有一个 implement 了接口 android.databinding.Observable 的类，为了方便，Android 原生提供了已经封装好的一个类 - BaseObservable，并且实现了监听器的注册机制。
+
+我们可以直接继承 BaseObservable.
 
 ```java
 public class ObservableUser extends BaseObservable {
@@ -283,233 +533,178 @@ public class ObservableUser extends BaseObservable {
         notifyPropertyChanged(BR.lastName);
     }
 }
+
 ```
+`BR` 是编译阶段生成的一个类，功能与 `R.java` 类似，用 `@Bindable` 标记过 `getter` 方法会在 `BR` 中生成一个 `entry`。
 
-`BR` 是编译阶段生成的一个类，功能与 `R.java` 类似，用 `@Bindable` 标记过 `getter` 方法会在 `BR` 中生成一个 *entry*。
+通过代码可以看出，当数据发生变化时还是需要手动发出通知。 通过调用 `notifyPropertyChanged(BR.firstName)` 可以通知系统 `BR.firstName` 这个 `entry` 的数据已经发生变化，需要更新 `UI`。
 
-通过代码可以看出，当数据发生变化时还是需要手动发出通知。 通过调用 `notifyPropertyChanged(BR.firstName)` 可以通知系统 `BR.firstName` 这个 `entry` 的数据已经发生变化，需要更新 UI。
-
-除此之外，还有一种更细粒度的绑定方式，可以具体到成员变量，这种方式无需继承 `BaseObservable`，一个简单的 **POJO** 就可以实现。
+### 3.2 ObservableFields（观察者属性）
+这种方式无需继承`BaseObservable `直接直接对每个类属性进行设置即可。
 
 ```java
-public class PlainUser {
-    public final ObservableField<String> firstName = new ObservableField<>();
-    public final ObservableField<String> lastName = new ObservableField<>();
-    public final ObservableInt age = new ObservableInt();
+private static class User {
+   public final ObservableField<String> firstName =
+       new ObservableField<>();
+   public final ObservableField<String> lastName =
+       new ObservableField<>();
+   public final ObservableInt age = new ObservableInt();
 }
 ```
-
-系统为我们提供了所有的 **primitive type** 所对应的 **Observable**类，例如 `ObservableInt`、`ObservableFloat`、`ObservableBoolean` 等等，还有一个 `ObservableField` 对应着 **reference type**。
-
-剩下的数据绑定与前面介绍的方式一样，具体可参考[ObservableActivity](app/src/main/java/com/liangfeizc/databinding/sample/observable/ObservableActivity.java)。
-
-## 带 ID 的 View
-
-**Data Binding** 有效降低了代码的冗余性，甚至完全没有必要再去获取一个 View 实例，但是情况不是绝对的，万一我们真的就需要了呢？不用担心，只要给 View 定义一个 ID，**Data Binding** 就会为我们生成一个对应的 `final` 变量。
-
-```xml
-<TextView
-    android:id="@+id/firstName"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content" />
-```
-
-上面代码中定义了一个 ID 为 *firstName** 的 `TextView`，那么它对应的变量就是
+然后可以这样使用
 
 ```java
-public final TextView firstName;
+user.firstName.set("Google");
+int age = user.age.get();
+```
+对于对象类型的属性可以使用`ObservableField`，对于基本类型，可以直接使用系统给我们封装好的，比如：`ObservableInt`,`ObservableBoolean`等，这样在访问的时候可以避免装箱和拆箱。
+
+### 3.3 Observable Collections（观察者集合）
+一些`app`会使用跟动态的方来来存储数据，比如需要用Map和List来存储数据，在集合中的数据发生变化的时候也要更新UI，`Data Binding`给我们提供ObservableArrayMap和ObservableArrayList来处理集合数据的更新。
+
+```java
+ObservableArrayMap<String, Object> user = new ObservableArrayMap<>();
+user.put("firstName", "Google");
+user.put("lastName", "Inc.");
+user.put("age", 17);
 ```
 
-具体代码可参考 [ViewWithIDsActivity.java](app/src/main/java/com/liangfeizc/databinding/sample/viewid/ViewWithIDsActivity.java)
+```xml
+<data>
+    <import type="android.databinding.ObservableMap"/>
+    <variable name="user" type="ObservableMap&lt;String, Object&gt;"/>
+</data>
+…
+<TextView
+   android:text='@{user["lastName"]}'
+   android:layout_width="wrap_content"
+   android:layout_height="wrap_content"/>
+<TextView
+   android:text='@{String.valueOf(1 + (Integer)user["age"])}'
+   android:layout_width="wrap_content"
+   android:layout_height="wrap_content"/>
+```
 
-## ViewStubs
+`ObservableArrayList`使用示例
 
-xml 中的 `ViewStub` 经过 binding 之后会转换成 `ViewStubProxy`, 具体代码可参考 [ViewStubActivity.java](app/src/main/java/com/liangfeizc/databinding/sample/viewstub/ViewStubActivity.java)
+```java
+ObservableArrayMap<String, Object> user = new ObservableArrayMap<>();
+user.put("firstName", "Google");
+user.put("lastName", "Inc.");
+user.put("age", 17);
+```
 
-简单用代码说明一下，xml 文件与之前的代码一样，根节点改为 `layout`，在 `LinearLayout` 中添加一个 `ViewStub`，添加 **ID**。
+```xml
+<data>
+    <import type="android.databinding.ObservableMap"/>
+    <variable name="user" type="ObservableMap&lt;String, Object&gt;"/>
+</data>
+…
+<TextView
+   android:text='@{user["lastName"]}'
+   android:layout_width="wrap_content"
+   android:layout_height="wrap_content"/>
+<TextView
+   android:text='@{String.valueOf(1 + (Integer)user["age"])}'
+   android:layout_width="wrap_content"
+   android:layout_height="wrap_content"/>
+```
+## 四、Binding Class的使用
+上面咱们知道Binding Class的名称和包名都是可以被自定义的，所以的Binding Class都是直接或间接的继承自`ViewDataBinding`
+### 4.1 创建Binding Class
+为了把布局的控制权完全交给`Binding Class`,`Binding`的操作应该紧跟在布局被`inflate`之后，创建`Binding Class`主要有这几种方式
+
+```java
+MyLayoutBinding binding = MyLayoutBinding.inflate(layoutInflater);
+MyLayoutBinding binding = MyLayoutBinding.inflate(layoutInflater, viewGroup, false);
+```
+
+如果`view`已经被`inflate`过了，可以直接把view传进来
+
+```java
+MyLayoutBinding binding = MyLayoutBinding.bind(viewRoot);
+```
+
+有时候我们并不知道要绑定哪一个布局
+
+```java
+ViewDataBinding binding = DataBindingUtil.inflate(LayoutInflater, layoutId,
+    parent, attachToParent);
+ViewDataBinding binding = DataBindingUtil.bindTo(viewRoot, layoutId);
+```
+
+### 4.2 获取View对象
+这样在`xml`中给View声明了一个id，就会在`Binding Class`中生成一个相应属性
 
 ```xml
 <layout xmlns:android="http://schemas.android.com/apk/res/android">
-    <LinearLayout
-        ...>
-        <ViewStub
-            android:id="@+id/view_stub"
-            android:layout="@layout/view_stub"
-            ... />
-    </LinearLayout>
+   <data>
+       <variable name="user" type="com.example.User"/>
+   </data>
+   <LinearLayout
+       android:orientation="vertical"
+       android:layout_width="match_parent"
+       android:layout_height="match_parent">
+       <TextView android:layout_width="wrap_content"
+           android:layout_height="wrap_content"
+           android:text="@{user.firstName}"
+   android:id="@+id/firstName"/>
+       <TextView android:layout_width="wrap_content"
+           android:layout_height="wrap_content"
+           android:text="@{user.lastName}"
+  android:id="@+id/lastName"/>
+   </LinearLayout>
 </layout>
 ```
 
-在 Java 代码中获取 `binding` 实例，为 `ViewStubProy` 注册 `ViewStub.OnInflateListener` 事件：
-
-```java
-binding = DataBindingUtil.setContentView(this, R.layout.activity_view_stub);
-binding.viewStub.setOnInflateListener(new ViewStub.OnInflateListener() {
-	@Override
-	public void onInflate(ViewStub stub, View inflated) {
-		ViewStubBinding binding = DataBindingUtil.bind(inflated);
-		User user = new User("fee", "lang");
-		binding.setUser(user);
-	}
-});
+```
+public final TextView firstName;
+public final TextView lastName;
 ```
 
-## Dynamic Variables
+### 4.3 变量
+每个`xml`中的`Variable`都会对应在`Binding Class`中生成`getter and setter`方法
 
-完整代码可以参考 [dynamic](app/src/main/java/com/liangfeizc/databinding/sample/dynamic)
-
-以 `RecyclerView` 为例，`Adapter` 的 **DataBinding** 需要动态生成，因此我们可以在 `onCreateViewHolder` 的时候创建这个 **DataBinding**，然后在 `onBindViewHolder` 中获取这个 **DataBinding**。
-
-```java
-public static class BindingHolder extends RecyclerView.ViewHolder {
-    private ViewDataBinding binding;
-
-    public BindingHolder(View itemView) {
-        super(itemView);
-    }
-
-    public ViewDataBinding getBinding() {
-        return binding;
-    }
-
-    public void setBinding(ViewDataBinding binding) {
-        this.binding = binding;
-    }
-}
-
-@Override
-public BindingHolder onCreateViewHolder(ViewGroup viewGroup, int i) {
-    ViewDataBinding binding = DataBindingUtil.inflate(
-            LayoutInflater.from(viewGroup.getContext()),
-            R.layout.list_item,
-            viewGroup,
-            false);
-    BindingHolder holder = new BindingHolder(binding.getRoot());
-    holder.setBinding(binding);
-    return holder;
-}
-
-@Override
-public void onBindViewHolder(BindingHolder holder, int position) {
-    User user = users.get(position);
-    holder.getBinding().setVariable(BR.user, user);
-    holder.getBinding().executePendingBindings();
-}
-```
-
-注意此处 `DataBindingUtil` 的用法：
-
-```java
-ViewDataBinding binding = DataBindingUtil.inflate(
-	LayoutInflater.from(viewGroup.getContext()),
-	R.layout.list_item,
-	viewGroup,
-	false);
-```
-
----
-
-还有另外一种比较简洁的方式，直接在构造 Holder 时把 `View` 与自动生成的 `XXXBinding` 进行绑定。
-
-```java
-public class UserAdapter extends RecyclerView.Adapter<UserAdapter.UserHolder> {
-    private static final int USER_COUNT = 10;
-
-    @NonNull
-    private List<User> mUsers;
-
-    public UserAdapter() {
-        mUsers = new ArrayList<>(10);
-        for (int i = 0; i < USER_COUNT; i ++) {
-            User user = new User(RandomNames.nextFirstName(), RandomNames.nextLastName());
-            mUsers.add(user);
-        }
-    }
-
-    public static class UserHolder extends RecyclerView.ViewHolder {
-        private UserItemBinding mBinding;
-
-        public UserHolder(View itemView) {
-            super(itemView);
-            mBinding = DataBindingUtil.bind(itemView);
-        }
-
-        public void bind(@NonNull User user) {
-            mBinding.setUser(user);
-        }
-    }
-
-    @Override
-    public UserHolder onCreateViewHolder(ViewGroup viewGroup, int i) {
-        View itemView = LayoutInflater.from(viewGroup.getContext())
-                .inflate(R.layout.user_item, viewGroup, false);
-        return new UserHolder(itemView);
-    }
-
-    @Override
-    public void onBindViewHolder(UserHolder holder, int position) {
-        holder.bind(mUsers.get(position));
-    }
-
-    @Override
-    public int getItemCount() {
-        return mUsers.size();
-    }
-}
-```
-
-## Attribute setters
-
-有了 **Data Binding**，即使属性没有在 `declare-styleable` 中定义，我们也可以通过 xml 进行赋值操作。
-为了演示这个功能，我自定义了一个 View - [NameCard](app/src/main/java/com/liangfeizc/databinding/view/NameCard.java)，属性资源 [R.styleable.NameCard](app/src/main/res/values/styles.xml#L8-L10) 中只定义了一个 `age` 属性，其中 `firstName` 和 `lastName` 只有对应的两个 `setter` 方法。
-
-只要有 `setter` 方法就可以像下面代码一样赋值：
 
 ```xml
-<com.liangfeizc.databindingsamples.attributesetters.UserView
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:paddingLeft="@dimen/largePadding"
-    app:onClickListener="@{activity.clickListener}"
-    app:firstName="@{@string/firstName}"
-    app:lastName="@{@string/lastName}"
-    app:age="27" />
+<data>
+    <import type="android.graphics.drawable.Drawable"/>
+    <variable name="user"  type="com.example.User"/>
+    <variable name="image" type="Drawable"/>
+    <variable name="note"  type="String"/>
+</data>
 ```
 
-`onClickListener` 也是同样道理，只不过我们是在 `Activity` 中定义了一个 `Listener`。
+```
+public abstract com.example.User getUser();
+public abstract void setUser(com.example.User user);
+public abstract Drawable getImage();
+public abstract void setImage(Drawable image);
+public abstract String getNote();
+public abstract void setNote(String note);
 
-## 转换器 (Converters)
-
-> **非常重要**
-
-> 使用 **Converter** 一定要保证它不会影响到其他的属性，例如这个 `@BindingConversion`- [convertColorToString](app/src/main/java/com/liangfeizc/databinding/sample/converter/ConversionsActivity.java#L50-L63) 就会影响到[android:visibility](app/src/main/res/layout/activity_basic.xml#L76), 因为他们都是都符合从 int 到 int 的转换。
-
-
-在 xml 中为属性赋值时，如果变量的类型与属性不一致，通过 **DataBinding** 可以进行转换。
-
-例如，下面代码中如果要为属性 `android:background` 赋值一个 `int` 型的 color 变量：
-
-```xml
-<View
-    android:background="@{isError.get() ? @color/red : @color/white}"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    app:layout_height="@{height}" />
 ```
 
-只需要定义一个标记了 `@BindingConversion` 的静态方法即可（*方法的定义位置可以随意*）：
+### 4.4 处理ViewStubs
+`ViewStub`只是一个占位符，当真正的`View`加载后它是会被替换掉的. 注意到咱们上面看到`Binding Class`中的`View`都是`final`的，所以对于`ViewStub`，会生成一个`ViewStubProxy`对象来与之对应，用法：
 
 ```java
-@BindingConversion
-public static ColorDrawable convertColorToDrawable(int color) {
-    return new ColorDrawable(color);
-}
+ binding.viewStub.getViewStub().inflate();
+ binding.viewStub.setOnInflateListener(new ViewStub.OnInflateListener() {
+            @Override
+            public void onInflate(ViewStub stub, View inflated) {
+                ViewStubBinding stubBinding = DataBindingUtil.bind(inflated);
+                stubBinding.setUser(new User("222", "xxx", false));
+            }
+        });
 ```
+`ViewStub`执行`inflate`会触发`ViewStub.OnInflateListener`，这时候可以创建`Binding Class`，并将数据对象传递进去。
 
-具体代码可参考 [ConversionsActivity.java](app/src/main/java/com/liangfeizc/databinding/sample/converter/ConversionsActivity.java)。
+### 4.5 Binding高级特性
 
-## include
+## 五、属性设置
 
-用法可以参考代码 [IncludeActivity.java](/app/src/main/java/com/liangfeizc/databinding/sample/include/IncludeActivity.java)
+## 六、转换器
 
-如果在非根节点的 ViewGroup 中使用 `include` 会导致 crash，已经在 StackOverflow 上提了一个问题[Android Data Binding makes app crash when using include tag in a non-root ViewGroup](http://stackoverflow.com/questions/30887906/android-data-binding-makes-app-crash-when-using-include-tag-in-a-non-root-viewgr)，直されたそうですけど。
+## 七、双向绑定
+
